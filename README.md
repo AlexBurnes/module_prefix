@@ -28,7 +28,7 @@ Set clang alternative
 
 ## Other requirements
 
-No need to build and install CMake and ninja, conan will install and used then, see conanfile.py and build scripts how to do it.
+No need to build and install CMake and ninja, conan will install and used them, see conanfile.py and build scripts how to do it.
 
 # Build
 
