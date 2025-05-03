@@ -14,7 +14,7 @@ class module_prefixConanRecipe(ConanFile):
     author = "Aleksey.Ozhigov <burnes@svyazcom.ru>"
     url = "https://github.com/AlexBurnes/module_prefix.git"
     description = "C++20 module prefix library example"
-    topics = ("Common", "prefix")
+    topics = ("c++20 module", "prefix", "example")
 
     settings = "os", "compiler", "build_type", "arch"
 
@@ -51,7 +51,6 @@ class module_prefixConanRecipe(ConanFile):
     def package(self):
         cmake = CMake(self)
         cmake.install()
-        #copy(self, "*.mpp", self.source_folder, self.package_folder)
 
     def package_info(self):
         self.cpp_info.libs = ["prefix"]
