@@ -1,4 +1,4 @@
-# C++20 modules, conan package module logger
+# C++20 modules, conan package module prefix
 
 Conan library as C++20 module.
 
