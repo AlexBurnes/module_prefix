@@ -24,8 +24,8 @@ class module_prefixConanRecipe(ConanFile):
     default_options = {"shared": False, "fPIC": True}
 
     def build_requirements(self):
-        self.tool_requires("cmake/3.28.1")
-        self.tool_requires("ninja/1.11.1")
+        self.tool_requires("cmake/[>=3.28.1 <4.0.0]")
+        self.tool_requires("ninja/[>=1.11.1 <2.0.0]")
         self.requires("module-logger/[>=0.1.0 <0.2.0]")
         self.requires("fmt/[>=10.2.1]")
 
