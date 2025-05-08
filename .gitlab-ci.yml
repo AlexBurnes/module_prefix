@@ -1,0 +1,201 @@
+include:
+  - project: 'ci-templates/common'
+    file: '/rules.yml'
+    ref: stable/v1
+
+before_script:
+    - git fetch --tags # Workaround for https://gitlab.com/gitlab-org/gitaly/issues/2221
+
+stages:
+    - build
+#    - test
+    - package_conan
+    - upload_conan
+    - test_build
+
+.bild_template: &build_job_definition
+    stage: build
+    script:
+        - if [ -n "$PREINST" ]; then $PREINST; fi
+        - if [ -n "$TOOLSET" ]; then source $TOOLSET; fi
+        - if [ -n "$PREBUILD" ]; then $PREBUILD; fi
+        - scripts/build --build .build --no-build-cleanup
+    extends: .sc_common_strict-build-rules
+    cache:
+        - key: "${OS_VERSION}.${TOOLSET}"
+          paths:
+            - .conan2
+        - key: "${CI_COMMIT_REF_SLUG}.${OS_VERSION}.${TOOLSET}"
+          paths:
+            - .build
+    artifacts:
+        paths:
+            - .build/src/test
+            - scripts
+
+#build:centos_7:
+#    <<: *build_job_definition
+#    image: registry.svc/svyazcom/centos7-gcc12
+#    variables:
+#        GIT_SUBMODULE_STRATEGY: normal
+#        OS_VERSION: "centos7"
+#        CONAN_HOME: "${CI_PROJECT_DIR}/.conan2"
+#        PREINST: "scripts/centos7/preinst"
+#        TOOLSET: "scripts/centos7/devtoolset/gcc12"
+#        PREBUILD: "scripts/centos7/prebuild"
+
+build:centos_8:
+    <<: *build_job_definition
+#    image: registry.svc/svyazcom/centos8-gcc13
+    image: registry.svc/burnes/build-gcc14:8
+    variables:
+        GIT_SUBMODULE_STRATEGY: normal
+        PREINST: "scripts/centos8/preinst"
+        TOOLSET: "scripts/centos8/devtoolset/devtoolset-14"
+        PREBUILD: "scripts/centos8/prebuild"
+        OS_VERSION: "centos8"
+        CONAN_HOME: "${CI_PROJECT_DIR}/.conan2"
+
+.test_template: &test_job_definition
+    stage: test
+    script:
+        - if [ -n "$PREINST" ]; then $PREINST; fi
+        - if [ -n "$TOOLSET" ]; then source $TOOLSET; fi
+        - if [ -n "$PREBUILD" ]; then $PREBUILD; fi
+        - ctest --test-dir .build
+    cache:
+        - key: "${CI_COMMIT_REF_SLUG}.${OS_VERSION}.${TOOLSET}"
+          paths:
+            - .build
+          policy: pull
+
+    extends: .sc_common_strict-build-rules
+
+#test:centos_7:
+#    <<: *test_job_definition
+#    image: registry.svc/svyazcom/centos7-gcc12
+#    variables:
+#        GIT_CLONE: none
+#        GIT_SUBMODULE_STRATEGY: none
+#        PREBUILD: "scripts/centos7/prebuild"
+#    dependencies:
+#        - build:centos_7
+#    needs:
+#        - build:centos_7
+
+#test:centos_8:
+#    <<: *test_job_definition
+##    image: registry.svc/svyazcom/centos8-gcc13
+#    image: registry.svc/burnes/build-gcc14:8
+#    variables:
+#        GIT_CLONE: none
+#        GIT_SUBMODULE_STRATEGY: none
+#    dependencies:
+#        - build:centos_8
+#    needs:
+#        - build:centos_8
+
+.package_conan_template: &package_conan_job_definition
+    stage: package_conan
+    script:
+        - if [ -n "$PREINST" ]; then $PREINST; fi
+        - if [ -n "$TOOLSET" ]; then source $TOOLSET; fi
+        - if [ -n "$PREBUILD" ]; then $PREBUILD; fi
+        - scripts/conan-build
+        - scripts/build --source test_build --build .test_build
+        - scripts/conan_version_check .test_build/src/example
+    extends: .sc_common_strict-build-rules
+    cache:
+        - key: "${OS_VERSION}.${TOOLSET}"
+          paths:
+            - .conan2
+
+
+package_conan:centos_8:
+    <<: *package_conan_job_definition
+#    image: registry.svc/svyazcom/centos7-gcc12
+    image: registry.svc/burnes/build-gcc14:8
+    variables:
+        GIT_SUBMODULE_STRATEGY: normal
+        PREINST: "scripts/centos8/preinst"
+        TOOLSET: "scripts/centos8/devtoolset/devtoolset-14"
+        PREBUILD: "scripts/centos8/prebuild"
+        CONAN_HOME: "${CI_PROJECT_DIR}/.conan2"
+        OS_VERSION: "centos8"
+    dependencies:
+#        - test:centos_7
+        - build:centos_8
+    needs:
+#        - test:centos_7
+        - build:centos_8
+
+.upload_conan_template: &upload_conan_job_definition
+    stage: upload_conan
+    script:
+        - if [ -n "$PREINST" ]; then $PREINST; fi
+        - if [ -n "$TOOLSET" ]; then source $TOOLSET; fi
+        - if [ -n "$PREBUILD" ]; then $PREBUILD; fi
+        - conan remote login -p ${ARTIFACTORY_TOCKEN} conan-local gitlab
+        - conan upload -r conan-local $(scripts/describe project)/$(scripts/describe version)
+    extends: .sc_common_strict-build-rules
+    cache:
+        - key: "${OS_VERSION}.${TOOLSET}"
+          paths:
+            - .conan2
+          policy: pull
+
+upload_conan:centos_8:
+    <<: *upload_conan_job_definition
+#    image: registry.svc/svyazcom/centos7-gcc12
+    image: registry.svc/burnes/build-gcc14:8
+    variables:
+        GIT_SUBMODULE_STRATEGY: normal
+        CONAN_HOME: "${CI_PROJECT_DIR}/.conan2"
+        TOOLSET: "scripts/centos8/devtoolset/devtoolset-14"
+        PREBUILD: "scripts/centos8/prebuild"
+        OS_VERSION: "centos8"
+    dependencies:
+        - package_conan:centos_8
+    needs:
+        - package_conan:centos_8
+
+.test_build_template: &test_build_job_definition
+    stage: test_build
+    script:
+        - if [ -n "$PREINST" ]; then $PREINST; fi
+        - if [ -n "$TOOLSET" ]; then source $TOOLSET; fi
+        - if [ -n "$PREBUILD" ]; then $PREBUILD; fi
+        - scripts/build --os ${OS_VERSION} --source test_build --build .test_build
+        - scripts/conan_version_check .test_build/src/example
+    extends: .sc_common_strict-build-rules
+
+
+#test_build:centos_7:
+#    <<: *test_build_job_definition
+#    image: registry.svc/svyazcom/centos7-gcc12
+#    variables:
+#        OS_VERSION: "centos7"
+#        CONAN_HOME: "${CI_PROJECT_DIR}/.conan2"
+#        PREINST: "scripts/centos7/preinst"
+#        PREBUILD: "scripts/centos7/prebuild"
+#        TOOLSET: "scripts/centos7/devtoolset/gcc12"
+#    dependencies:
+#        - upload_conan:centos_7
+#    needs:
+#        - upload_conan:centos_7
+
+test_build:centos_8:
+    <<: *test_build_job_definition
+#    image: registry.svc/svyazcom/centos8-gcc13
+    image: registry.svc/burnes/build-gcc14:8
+    variables:
+        GIT_SUBMODULE_STRATEGY: normal
+        PREINST: "scripts/centos8/preinst"
+        TOOLSET: "scripts/centos8/devtoolset/devtoolset-14"
+        PREBUILD: "scripts/centos8/prebuild"
+        OS_VERSION: "centos8"
+        CONAN_HOME: "${CI_PROJECT_DIR}/.conan2"
+    dependencies:
+        - upload_conan:centos_8
+    needs:
+        - upload_conan:centos_8

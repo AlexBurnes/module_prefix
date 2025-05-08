@@ -1,0 +1,6 @@
+[submodule "modules/cmake"]
+	path = modules/cmake
+	url = ../../burnes/cmake-modules
+[submodule "scripts"]
+	path = scripts
+	url = ../../burnes/build-scripts

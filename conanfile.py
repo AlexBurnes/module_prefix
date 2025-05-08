@@ -46,7 +46,10 @@ class module_prefixConanRecipe(ConanFile):
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
+        #clang
         copy(self, "prefix.pcm", src=os.path.join(self.build_folder, "CMakeFiles", "prefix.dir"), dst=os.path.join(self.package_folder, "bmi"))
+        #gcc
+        copy(self, "prefix.gcm", src=os.path.join(self.build_folder, "CMakeFiles", "prefix.dir"), dst=os.path.join(self.package_folder, "bmi"))
 
     def package(self):
         cmake = CMake(self)
